@@ -60,3 +60,6 @@ You can try the [the example](./examples/).
 * Only direct `using/import`, `include`, `module` are
   processed. If you have some fancy meta-programming, it
   could fail.
+
+* Of course, if your module top-level or `__init__` codes have side effects, results
+  could be wrong.
