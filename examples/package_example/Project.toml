@@ -1,0 +1,7 @@
+name = "package_example"
+uuid = "c8f8b017-4f8a-41d3-be79-148aa4b67f74"
+authors = ["Haoran SUN <hrsun@zju.edu.cn>"]
+version = "0.1.0"
+
+[deps]
+ThinModules = "9d3818cf-6167-4773-80a0-959b9e922fa8"

@@ -1,7 +1,10 @@
 name = "ThinModules"
 uuid = "9d3818cf-6167-4773-80a0-959b9e922fa8"
-authors = ["Haoran SUN <shuenhoy@zju.edu.cn> and contributors"]
+authors = ["Haoran SUN <hrsun@zju.edu.cn> and contributors"]
 version = "0.1.0"
+
+[deps]
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 
 [compat]
 julia = "1.6.1"
