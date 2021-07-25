@@ -38,14 +38,14 @@ struct Context
     based::Module
     queue::Queue{Tuple{ModuleName,Expr,String}}
     modules_body::Dict{ModuleName,Expr}
-    rev_dependencies::Dict{ModuleName,Set{ModuleName}}
+    dependencies::Dict{ModuleName,Set{ModuleName}}
     file_dependencies::Dict{ModuleName,Set{String}}
     function Context(root_name::ModuleName, based::Module)
         queue = Queue{Tuple{ModuleName,Expr,String}}()
         modules_body = Dict{ModuleName,Expr}()
-        rev_dependencies = Dict{ModuleName,Array{ModuleName}}()
+        dependencies = Dict{ModuleName,Array{ModuleName}}()
         file_dependencies = Dict{ModuleName,Array{String}}()
-        return new(root_name, based, queue, modules_body, rev_dependencies, file_dependencies)
+        return new(root_name, based, queue, modules_body, dependencies, file_dependencies)
     end
 end
 
@@ -65,11 +65,12 @@ end
 
 function topological_sort(context::Context)
     indegree = Dict{ModuleName,Int}()
+    rev_deps = rev_dependencies(context)
     for m in keys(context.modules_body)
         indegree[m] = 0
     end
 
-    for m in values(context.rev_dependencies)
+    for m in values(rev_deps)
         for d in m
             indegree[d] += 1
         end
@@ -81,11 +82,14 @@ function topological_sort(context::Context)
             enqueue!(queue, m)
         end
     end
+
+    counts = 0
     while !isempty(queue)
         m = dequeue!(queue)
+        counts += 1
         push!(sorts, m)
-        if haskey(context.rev_dependencies, m)
-            for d in context.rev_dependencies[m]
+        if haskey(rev_deps, m)
+            for d in rev_deps[m]
                 indegree[d] -= 1
                 if indegree[d] == 0
                     enqueue!(queue, d)
@@ -93,7 +97,7 @@ function topological_sort(context::Context)
             end
         end
     end
-    if !isempty(queue)
+    if counts != length(keys(context.modules_body))
         error("Cyclic dependencies")
     end
     return sorts
@@ -157,6 +161,19 @@ function find_module(context::Context, mod::ModuleName)
     error("No such module exists.")
 end
 
+function rev_dependencies(context::Context)
+    rev_deps = Dict{ModuleName,Set{ModuleName}}()
+    for m in keys(context.modules_body)
+        rev_deps[m] = Set{ModuleName}()
+    end
+    for (m, deps) in context.dependencies
+        for d in deps
+            push!(rev_deps[find_module(context, d)], m)
+        end
+    end
+    return rev_deps
+end
+
 # <---------------------------- import ---------------------------
 
 
@@ -173,12 +190,9 @@ function analysis_block!(context::Context, block::Expr, module_name::ModuleName,
                 analysis_block!(context, minclude(to_include_path), module_name, new_args, to_include_path)
             elseif isimport(current)
                 for imp in current.args
-                    nmodule_name = find_module(context, resolve_import(imp, module_name))
+                    nmodule_name = resolve_import(imp, module_name)
                     if isprefix(context.root_name, nmodule_name)
-                        if !haskey(context.rev_dependencies, module_name)
-                            context.rev_dependencies[nmodule_name] = Set{ModuleName}()
-                        end
-                        push!(context.rev_dependencies[nmodule_name], module_name)
+                        push!(context.dependencies[module_name], nmodule_name)
                     end
                 end
                 
@@ -197,6 +211,8 @@ function analysis_module!(context::Context, def::Expr, name::ModuleName, filenam
     i = 1
     new_args = Union{Any}[]
     context.file_dependencies[name] = Set{String}()
+    context.dependencies[name] = Set{ModuleName}()
+
     analysis_block!(context, def, name, new_args, filename)
 
     new_block = Expr(:block, new_args...)
