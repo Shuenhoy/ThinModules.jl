@@ -1,5 +1,4 @@
 
-__precompile__(false)
 
 using ThinModules
 

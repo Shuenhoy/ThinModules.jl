@@ -25,7 +25,11 @@ macro thinmod(module_def)
     for m in sorts
         Base.eval(modules[m], context.modules_body[m])
     end
-
+    for (m, fs) in context.file_dependencies
+        for f in fs
+            @eval modules[m] Base.include_dependency($f)
+        end
+    end
 end
 const ModuleName = Array{Symbol}
 
@@ -35,11 +39,13 @@ struct Context
     queue::Queue{Tuple{ModuleName,Expr,String}}
     modules_body::Dict{ModuleName,Expr}
     rev_dependencies::Dict{ModuleName,Set{ModuleName}}
+    file_dependencies::Dict{ModuleName,Set{String}}
     function Context(root_name::ModuleName, based::Module)
         queue = Queue{Tuple{ModuleName,Expr,String}}()
         modules_body = Dict{ModuleName,Expr}()
         rev_dependencies = Dict{ModuleName,Array{ModuleName}}()
-        return new(root_name, based, queue, modules_body, rev_dependencies)
+        file_dependencies = Dict{ModuleName,Array{String}}()
+        return new(root_name, based, queue, modules_body, rev_dependencies, file_dependencies)
     end
 end
 
@@ -94,7 +100,7 @@ function topological_sort(context::Context)
 end
 
 function create_module!(base::Module, name::Symbol)
-    return Base.eval(base, Expr(:module, true, name, Expr(:block)))
+    return @eval base module $name end
 end
 
 function create_modules_hierarchy!(context::Context)
@@ -163,7 +169,7 @@ function analysis_block!(context::Context, block::Expr, module_name::ModuleName,
         elseif current isa Expr
             if current.head == :call && current.args[1] == :include
                 to_include_path = abspath(joinpath(dirname(filename), current.args[2]))
-
+                push!(context.file_dependencies[module_name], to_include_path)
                 analysis_block!(context, minclude(to_include_path), module_name, new_args, to_include_path)
             elseif isimport(current)
                 for imp in current.args
@@ -190,6 +196,7 @@ end
 function analysis_module!(context::Context, def::Expr, name::ModuleName, filename::String)
     i = 1
     new_args = Union{Any}[]
+    context.file_dependencies[name] = Set{String}()
     analysis_block!(context, def, name, new_args, filename)
 
     new_block = Expr(:block, new_args...)

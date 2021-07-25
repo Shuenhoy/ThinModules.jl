@@ -60,6 +60,3 @@ You can try the [the example](./examples/).
 * Only direct `using/import`, `include`, `module` are
   processed. If you have some fancy meta-programming, it
   could fail.
-
-* When you are `develop` your package, the "precompile
-  cache" seems not to get updated when you edit your file.
